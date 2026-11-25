@@ -114,17 +114,16 @@ struct Codes {
 
 /// Details of a node's name and visitor keys.
 #[derive(Deserialize, Debug)]
-struct NodeKeys {
-    name: String,
-    keys: Vec<String>,
+pub(super) struct NodeKeys {
+    pub(super) name: String,
+    pub(super) keys: Vec<String>,
 }
 
-/// Generate:
-/// * Walk functions.
-/// * Visitor keys.
-/// * `Map` from node type name to node type ID.
-/// * Visitor type definition.
-fn generate(codegen: &Codegen) -> Codes {
+/// Get the full ESTree node list, sorted so that the index of each node is its type ID.
+///
+/// Returns name and visitor keys per node.
+/// Shared with the lazy ESTree generator so type IDs stay aligned.
+pub(super) fn get_estree_nodes(codegen: &Codegen) -> IndexVec<NodeId, NodeKeys> {
     // Run `napi/parser/scripts/visitor-keys.js` to get visitor keys from TS-ESLint
     let script_path = codegen.root_path().join("napi/parser/scripts/visitor-keys.js");
 
@@ -192,6 +191,17 @@ fn generate(codegen: &Codegen) -> Codes {
             }
         }
     });
+
+    nodes
+}
+
+/// Generate:
+/// * Walk functions.
+/// * Visitor keys.
+/// * `Map` from node type name to node type ID.
+/// * Visitor type definition.
+fn generate(codegen: &Codegen) -> Codes {
+    let nodes = get_estree_nodes(codegen);
 
     // Generate code
     #[rustfmt::skip]

@@ -15,11 +15,20 @@ import { timeCall, wrapTimedFunction } from "./timing.ts";
 import {
   addVisitorToCompiled,
   compiledVisitor,
+  compiledVisitorNeedsAncestors,
   finalizeCompiledVisitor,
   resetCompiledVisitor,
   VISITOR_EMPTY,
   VISITOR_CFG,
 } from "./visitor.ts";
+
+import { tryWalkLazy } from "./lazy_walk.ts";
+import {
+  LazyFallbackError,
+  lazyDisabledForRun,
+  recordLazyFallback,
+  setLazyWalkActive,
+} from "./lazy/fallback.ts";
 
 import { walkProgram, ancestors } from "../generated/walk.js";
 
@@ -32,6 +41,13 @@ import type { RuleTiming } from "./timing.ts";
 // All buffers sent from Rust are stored in this array, indexed by `bufferId` (also sent from Rust).
 // Buffers are only added to this array, never removed, so no buffers will be garbage collected
 // until the process exits.
+// Set while re-linting a file eagerly after a lazy fallback (see `lazy/fallback.ts`)
+let forceEagerFile = false;
+
+// EXPERIMENTAL: walk the raw buffer lazily instead of deserializing the whole AST,
+// for files whose visitors can be mapped onto the lazy walker. See `lazy_walk.ts`.
+const LAZY_WALK = process.env.OXLINT_JS_PLUGIN_LAZY === "1";
+
 export const buffers: (BufferWithArrays | null)[] = [];
 
 // Array of `after` hooks to run after traversal. This array reused for every file.
@@ -72,17 +88,43 @@ export function lintFile(
   const timings: RuleTiming[] | null = collectTimings ? [] : null;
 
   try {
-    lintFileImpl(
-      filePath,
-      bufferId,
-      buffer,
-      ruleIds,
-      optionsIds,
-      settingsJSON,
-      globalsJSON,
-      workspaceUri,
-      timings,
-    );
+    try {
+      lintFileImpl(
+        filePath,
+        bufferId,
+        buffer,
+        ruleIds,
+        optionsIds,
+        settingsJSON,
+        globalsJSON,
+        workspaceUri,
+        timings,
+      );
+    } catch (err) {
+      if (!(err instanceof LazyFallbackError)) throw err;
+      // A rule demanded the eager AST during a lazy walk. Reset per-file state and
+      // re-lint this file eagerly, so the rule observes a single canonical node graph.
+      recordLazyFallback();
+      runAfterHooks(false);
+      clearStateAfterError();
+      if (timings !== null) timings.length = 0;
+      forceEagerFile = true;
+      try {
+        lintFileImpl(
+          filePath,
+          bufferId,
+          buffer,
+          ruleIds,
+          optionsIds,
+          settingsJSON,
+          globalsJSON,
+          workspaceUri,
+          timings,
+        );
+      } finally {
+        forceEagerFile = false;
+      }
+    }
 
     let ret: string | null = null;
 
@@ -268,18 +310,37 @@ export function lintFileImpl(
   // Some rules seen in the wild return an empty visitor object from `create` if some initial check fails
   // e.g. file extension is not one the rule acts on.
   if (visitorState !== VISITOR_EMPTY) {
-    if (ast === null) initAst();
-    debugAssertIsNonNull(ast);
-
-    debugAssert(ancestors.length === 0, "`ancestors` should be empty before walking AST");
-
-    if (visitorState === VISITOR_CFG) {
-      walkProgramWithCfg(ast, compiledVisitor);
-    } else {
-      walkProgram(ast, compiledVisitor as (VisitFn | EnterExit | null)[]);
+    let walkedLazily = false;
+    if (
+      LAZY_WALK
+      && !forceEagerFile
+      && !lazyDisabledForRun
+      && visitorState !== VISITOR_CFG
+      && !compiledVisitorNeedsAncestors
+      // If a `create()` / `before` hook already materialized the eager AST,
+      // walk eagerly to keep a single canonical node graph for this file
+      && ast === null
+    ) {
+      // From here until `resetFile`, materializing the eager AST triggers the
+      // lazy fallback (see `lazy/fallback.ts`)
+      setLazyWalkActive(true);
+      walkedLazily = tryWalkLazy(buffer, compiledVisitor as (VisitFn | EnterExit | null)[]);
     }
 
-    debugAssert(ancestors.length === 0, "`ancestors` should be empty after walking AST");
+    if (!walkedLazily) {
+      if (ast === null) initAst();
+      debugAssertIsNonNull(ast);
+
+      debugAssert(ancestors.length === 0, "`ancestors` should be empty before walking AST");
+
+      if (visitorState === VISITOR_CFG) {
+        walkProgramWithCfg(ast, compiledVisitor);
+      } else {
+        walkProgram(ast, compiledVisitor as (VisitFn | EnterExit | null)[]);
+      }
+
+      debugAssert(ancestors.length === 0, "`ancestors` should be empty after walking AST");
+    }
 
     // Reset compiled visitor, ready for next file
     resetCompiledVisitor();
@@ -337,6 +398,7 @@ function runAfterHooks(shouldThrowIfError: boolean) {
  * Reset file context, source, AST, and settings, to free memory.
  */
 export function resetFile() {
+  setLazyWalkActive(false);
   resetFileContext();
   resetSourceAndAst();
   resetSettings();

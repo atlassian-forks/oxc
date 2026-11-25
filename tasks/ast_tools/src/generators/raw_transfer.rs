@@ -1083,7 +1083,7 @@ fn generate_option(
 }
 
 /// Get condition for `Option`'s `None` value and offset of `Option`'s payload.
-fn get_option_none_condition_and_offset(
+pub(super) fn get_option_none_condition_and_offset(
     option_def: &OptionDef,
     inner_type: &TypeDef,
     offset: u32,

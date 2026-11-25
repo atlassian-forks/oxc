@@ -207,7 +207,7 @@ fn generate(
 }
 
 /// Structure for calculating which types need walk functions.
-struct WalkStatuses<'s> {
+pub(super) struct WalkStatuses<'s> {
     statuses: IndexVec<TypeId, WalkStatus>,
     leaf_nodes_count: u32,
     estree_derive_id: DeriveId,
@@ -216,7 +216,7 @@ struct WalkStatuses<'s> {
 
 /// Enum describing whether a type needs a walk function.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum WalkStatus {
+pub(super) enum WalkStatus {
     NoWalk,
     Walk,
     Uncalculated,
@@ -240,7 +240,7 @@ impl<'s> WalkStatuses<'s> {
     ///
     /// Also calculate the number of leaf nodes i.e. nodes which don't have any children which are walked
     /// e.g. `IdentifierReference`, `StringLiteral`.
-    fn calculate(
+    pub(super) fn calculate(
         estree_derive_id: DeriveId,
         schema: &'s Schema,
     ) -> (/* walk statuses */ IndexVec<TypeId, WalkStatus>, /* leaf nodes count */ u32) {
@@ -344,7 +344,7 @@ impl<'s> WalkStatuses<'s> {
 const UNCALCULATED: u8 = u8::MAX;
 
 /// Structure for calculating cache key offsets.
-struct CacheKeyOffsets<'s> {
+pub(super) struct CacheKeyOffsets<'s> {
     offsets: IndexVec<TypeId, u8>,
     estree_derive_id: DeriveId,
     span_type_id: TypeId,
@@ -353,7 +353,7 @@ struct CacheKeyOffsets<'s> {
 
 impl<'s> CacheKeyOffsets<'s> {
     /// Calculate cache key offsets for all structs in AST.
-    fn calculate(
+    pub(super) fn calculate(
         estree_derive_id: DeriveId,
         span_type_id: TypeId,
         schema: &'s Schema,
@@ -542,7 +542,7 @@ impl<'s> CacheKeyOffsets<'s> {
 ///
 /// TODO: Even though AST nodes are cached at global level, it may be more performant to also
 /// cache them locally, because local cache is cheaper to access.
-struct LocalCacheTypes<'s> {
+pub(super) struct LocalCacheTypes<'s> {
     state: IndexVec<TypeId, ShouldHaveLocalCache>,
     schema: &'s Schema,
 }
@@ -555,7 +555,7 @@ enum ShouldHaveLocalCache {
 }
 
 impl<'s> LocalCacheTypes<'s> {
-    fn new(schema: &'s Schema) -> Self {
+    pub(super) fn new(schema: &'s Schema) -> Self {
         Self { state: index_vec![ShouldHaveLocalCache::Uncalculated; schema.types.len()], schema }
     }
 
@@ -566,7 +566,7 @@ impl<'s> LocalCacheTypes<'s> {
     /// e.g. `Option<Vec>`, `Option<&str>`, `Option<Box<Vec>>`.
     ///
     /// Enums need to be cached if any variant is a `Vec` or a string (or an `Option<Vec>` etc).
-    fn needs_cached_prop(&mut self, type_def: &TypeDef) -> bool {
+    pub(super) fn needs_cached_prop(&mut self, type_def: &TypeDef) -> bool {
         let type_id = type_def.id();
         match self.state[type_id] {
             ShouldHaveLocalCache::False => return false,
@@ -1062,7 +1062,7 @@ fn generate_primitive(primitive_def: &PrimitiveDef, state: &mut State, schema: &
 }
 
 // TODO: Alter this in line with the more efficient version in eager deserializer
-static STR_DESERIALIZER_BODY: &str = "
+pub(super) static STR_DESERIALIZER_BODY: &str = "
     const pos32 = pos >> 2,
         { buffer } = ast,
         { int32 } = buffer,
@@ -1297,7 +1297,7 @@ fn generate_vec(
 /// That excludes fields which aren't part of the AST tree e.g. `Program::comments`.
 ///
 /// Whether the field is actually walked also depends on whether its type contains any walked nodes.
-fn is_walked_field(field: &FieldDef, schema: &Schema) -> bool {
+pub(super) fn is_walked_field(field: &FieldDef, schema: &Schema) -> bool {
     if !should_skip_field(field, schema) {
         return true;
     }
@@ -1313,7 +1313,7 @@ fn is_walked_field(field: &FieldDef, schema: &Schema) -> bool {
 ///
 /// * If `offset == 0` -> `internal.pos`.
 /// * Otherwise -> `internal.pos + <offset>` (e.g. `internal.pos + 8`).
-fn internal_pos_offset<O>(offset: O) -> Cow<'static, str>
+pub(super) fn internal_pos_offset<O>(offset: O) -> Cow<'static, str>
 where
     O: TryInto<u64>,
     <O as TryInto<u64>>::Error: Debug,

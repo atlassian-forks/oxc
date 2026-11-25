@@ -23,6 +23,7 @@ import { resetTokens } from "./tokens.ts";
 import * as tokenMethods from "./tokens_methods.ts";
 import { getTokensAndComments, resetTokensAndComments } from "./tokens_and_comments.ts";
 import { debugAssertIsNonNull } from "../utils/asserts.ts";
+import { LazyFallbackError, lazyWalkActive } from "./lazy/fallback.ts";
 
 import type { Program } from "../generated/types.d.ts";
 import type { Comment } from "./comments.ts";
@@ -79,6 +80,9 @@ export function initSourceText(): void {
  * Deserialize AST from buffer.
  */
 export function initAst(): void {
+  // Materializing the eager AST during a lazy walk would create a second, disjoint
+  // object graph. Trigger the lazy fallback instead (see `lazy/fallback.ts`).
+  if (lazyWalkActive) throw new LazyFallbackError();
   if (sourceText === null) initSourceText();
   debugAssertIsNonNull(sourceText);
   debugAssertIsNonNull(buffer);

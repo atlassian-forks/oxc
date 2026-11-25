@@ -282,6 +282,8 @@ const GENERATORS: &[&(dyn Generator + Sync)] = &[
     #[cfg(feature = "generate-js")]
     &generators::RawTransferLazyGenerator,
     #[cfg(feature = "generate-js")]
+    &generators::RawTransferLazyESTreeGenerator,
+    #[cfg(feature = "generate-js")]
     &generators::TypescriptGenerator,
     &generators::FormatterFormatGenerator,
     &generators::FormatterAstNodesGenerator,

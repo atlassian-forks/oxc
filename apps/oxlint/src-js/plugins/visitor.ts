@@ -192,6 +192,10 @@ for (let i = CFG_EVENTS_COUNT; i !== 0; i--) {
 // not "holey" (hash map). This is critical, as looking up elements in this array is a very hot path
 // during AST visitation, and holey arrays are much slower.
 // https://v8.dev/blog/elements-kinds
+// `true` if the current compiled visitor contains a complex esquery selector,
+// whose matcher reads the `ancestors` stack maintained by the walker.
+export let compiledVisitorNeedsAncestors = false;
+
 export const compiledVisitor: (VisitFn | EnterExit | CfgVisitFn | null)[] = [];
 
 for (let i = TYPE_IDS_COUNT; i !== 0; i--) {
@@ -349,6 +353,7 @@ export function addVisitorToCompiled(visitor: VisitorObject, timing?: RuleTiming
       visitProp.specificity |= selector.specificity;
 
       if (selector.isComplex) {
+        compiledVisitorNeedsAncestors = true;
         visitProp.fn = wrapVisitFnWithSelectorMatch(visitFn, selector.matcher);
         if (timing !== undefined) visitProp.fn = wrapTimedFunction(visitProp.fn, timing);
       }
@@ -517,6 +522,8 @@ export function finalizeCompiledVisitor(): VisitorState {
  * After calling this function, `compiledVisitor` is in a clean state, ready for next file's visitor to be compiled.
  */
 export function resetCompiledVisitor(): void {
+  compiledVisitorNeedsAncestors = false;
+
   // Reset `compiledVisitor` array
   compiledVisitor.fill(null);
 

@@ -11,6 +11,8 @@ src:
   - 'apps/oxlint/src-js/generated/deserialize.js'
   - 'apps/oxlint/src-js/generated/envs.ts'
   - 'apps/oxlint/src-js/generated/keys.ts'
+  - 'apps/oxlint/src-js/generated/lazy/constructors.js'
+  - 'apps/oxlint/src-js/generated/lazy/walk.js'
   - 'apps/oxlint/src-js/generated/type_ids.ts'
   - 'apps/oxlint/src-js/generated/types.d.ts'
   - 'apps/oxlint/src-js/generated/visitor.d.ts'

@@ -20,6 +20,8 @@ mod oxlint_envs;
 mod raw_transfer;
 #[cfg(feature = "generate-js")]
 mod raw_transfer_lazy;
+#[cfg(feature = "generate-js")]
+mod raw_transfer_lazy_estree;
 mod scopes_collector;
 mod traverse;
 #[cfg(feature = "generate-js")]
@@ -44,6 +46,8 @@ pub use oxlint_envs::OxlintEnvsGenerator;
 pub use raw_transfer::RawTransferGenerator;
 #[cfg(feature = "generate-js")]
 pub use raw_transfer_lazy::RawTransferLazyGenerator;
+#[cfg(feature = "generate-js")]
+pub use raw_transfer_lazy_estree::RawTransferLazyESTreeGenerator;
 pub use scopes_collector::ScopesCollectorGenerator;
 pub use traverse::TraverseGenerator;
 #[cfg(feature = "generate-js")]
